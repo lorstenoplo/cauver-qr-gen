@@ -134,7 +134,7 @@ export default function QRScanner() {
               className="w-full bg-blue-500 hover:bg-blue-600 p-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2"
               disabled={authLoading}
             >
-              Login
+              Unlock Scanner
               {authLoading && <Loader2 className="w-5 h-5 animate-spin" />}
             </button>
             {error && (
