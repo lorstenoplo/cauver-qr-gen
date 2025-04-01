@@ -1,10 +1,9 @@
 import { useState, useRef, useCallback } from "react";
 import QrReader from "react-qr-scanner";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Camera, XCircle, CheckCircle2, Loader2, Lock } from "lucide-react";
-import { db } from "../lib/firebase";
-
-const ADMIN_PASSWORD = "securepass123";
+import { Camera, XCircle, CheckCircle2, Loader2, Lock, LogOut } from "lucide-react";
+import { auth, db } from "../lib/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 export default function QRScanner() {
   const [scanning, setScanning] = useState(false);
@@ -12,8 +11,10 @@ export default function QRScanner() {
   const [success, setSuccess] = useState("");
   const [studentData, setStudentData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
   const processingRef = useRef(false);
 
   const handleScan = useCallback(
@@ -24,7 +25,7 @@ export default function QRScanner() {
 
       try {
         const decodedText = data.text;
-        let parsedData = JSON.parse(decodedText);
+        const parsedData = JSON.parse(decodedText);
 
         if (!parsedData.roll_num) {
           throw new Error("Invalid QR code format");
@@ -84,12 +85,17 @@ export default function QRScanner() {
     setError("Camera error. Please check permissions and try again.");
   }, []);
 
-  const handlePasswordSubmit = () => {
-    if (password === ADMIN_PASSWORD) {
+  const handleLogin = async () => {
+    try {
+      setAuthLoading(true);
+      await signInWithEmailAndPassword(auth, email, password);
       setIsAuthenticated(true);
-    } else {
-      setError("Incorrect password. Try again.");
+    } catch (error) {
+      console.error("Login error:", error);
+      setError("Invalid email or password. Please try again.");
       setTimeout(() => setError(""), 3000);
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -107,20 +113,29 @@ export default function QRScanner() {
         {!isAuthenticated ? (
           <div className="bg-gray-800 p-6 rounded-xl shadow-xl text-center">
             <h2 className="text-lg font-semibold mb-4 flex items-center justify-center gap-2">
-              <Lock className="w-5 h-5 text-yellow-400" /> Admin Access Required
+              <Lock className="w-5 h-5 text-yellow-400" /> Admin Login
             </h2>
             <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full mb-4 p-3 bg-gray-700 rounded-xl text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+            />
+            <input
               type="password"
-              placeholder="Enter Admin Password"
+              placeholder="Password"
               value={password}
-              onChange={(e: any) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full mb-4 p-3 bg-gray-700 rounded-xl text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
             />
             <button
-              onClick={handlePasswordSubmit}
+              onClick={handleLogin}
               className="w-full bg-blue-500 hover:bg-blue-600 p-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2"
+              disabled={authLoading}
             >
-              Unlock Scanner
+              Login
+              {authLoading && <Loader2 className="w-5 h-5 animate-spin" />}
             </button>
             {error && (
               <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
@@ -210,6 +225,17 @@ export default function QRScanner() {
                 </div>
               </div>
             )}
+
+            {/* sign out button */}
+            <button
+              onClick={() => {
+                auth.signOut();
+                setIsAuthenticated(false);
+              }}
+              className="w-full bg-red-500 hover:bg-red-600 p-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-5 h-5" /> Sign Out
+            </button>
           </main>
         )}
       </div>
