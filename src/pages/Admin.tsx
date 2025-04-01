@@ -1,18 +1,18 @@
-import { useState, useRef, useCallback } from 'react';
-import QrReader from 'react-qr-scanner';
+import { useState, useRef, useCallback } from "react";
+import QrReader from "react-qr-scanner";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Camera, XCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { Camera, XCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { db } from "../lib/firebase";
 
 export default function QRScanner() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [studentData, setStudentData] = useState(null);
+  const [studentData, setStudentData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const processingRef = useRef(false);
 
-  const handleScan = useCallback(async (data) => {
+  const handleScan = useCallback(async (data: { text: any }) => {
     if (!data || processingRef.current) return;
     processingRef.current = true;
     setLoading(true);
@@ -34,8 +34,12 @@ export default function QRScanner() {
 
       const studentRecord = studentDoc.data();
       if (studentRecord.qr_scanned) {
-        const scannedDate = new Date(studentRecord.scanned_at.toDate()).toLocaleString();
-        throw new Error(`${studentRecord.name} has already scanned at ${scannedDate}`);
+        const scannedDate = new Date(
+          studentRecord.scanned_at.toDate()
+        ).toLocaleString();
+        throw new Error(
+          `${studentRecord.name} has already scanned at ${scannedDate}`
+        );
       }
 
       await updateDoc(studentRef, {
@@ -49,7 +53,7 @@ export default function QRScanner() {
         roll_num: parsedData.roll_num,
         department: studentRecord.department,
         year: studentRecord.year,
-        scanned_at: new Date().toLocaleString()
+        scanned_at: new Date().toLocaleString(),
       });
 
       // Keep success message and student data visible for 5 seconds
@@ -59,7 +63,7 @@ export default function QRScanner() {
         processingRef.current = false;
       }, 5000);
     } catch (error) {
-      setError(error.message);
+      setError((error as any).message);
       setTimeout(() => {
         setError("");
         processingRef.current = false;
@@ -69,7 +73,7 @@ export default function QRScanner() {
     }
   }, []);
 
-  const handleError = useCallback((err) => {
+  const handleError = useCallback((err: any) => {
     console.error(err);
     setError("Camera error. Please check permissions and try again.");
   }, []);
@@ -98,10 +102,10 @@ export default function QRScanner() {
                       facingMode: "environment",
                       width: { ideal: 1280 },
                       height: { ideal: 720 },
-                      frameRate: { ideal: 30 }
-                    }
+                      frameRate: { ideal: 30 },
+                    },
                   }}
-                  style={{ width: '100%', height: '100%' }}
+                  style={{ width: "100%", height: "100%" }}
                 />
                 {loading && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -118,14 +122,14 @@ export default function QRScanner() {
 
           <button
             className={`w-full py-4 px-6 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-              scanning 
-                ? 'bg-red-500 hover:bg-red-600' 
-                : 'bg-blue-500 hover:bg-blue-600'
+              scanning
+                ? "bg-red-500 hover:bg-red-600"
+                : "bg-blue-500 hover:bg-blue-600"
             }`}
             onClick={() => setScanning(!scanning)}
           >
             <Camera className="w-5 h-5" />
-            {scanning ? 'Stop' : 'Start'} Scanning
+            {scanning ? "Stop" : "Start"} Scanning
           </button>
 
           {error && (
@@ -134,7 +138,7 @@ export default function QRScanner() {
               <p className="text-red-200">{error}</p>
             </div>
           )}
-          
+
           {success && (
             <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 animate-fade-in flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -144,7 +148,9 @@ export default function QRScanner() {
 
           {studentData && (
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 animate-fade-in">
-              <h3 className="text-lg font-semibold mb-3 text-blue-300">Student Details</h3>
+              <h3 className="text-lg font-semibold mb-3 text-blue-300">
+                Student Details
+              </h3>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Name</span>
