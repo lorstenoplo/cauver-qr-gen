@@ -111,7 +111,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white px-4">
-      <div className="w-full max-w-md bg-gray-800 p-6 rounded-2xl shadow-xl">
+      <div className="w-full max-w-md bg-gray-800 p-4 rounded-2xl shadow-xl">
         {user ? (
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-4">
@@ -121,7 +121,7 @@ export default function HomePage() {
             <img
               src={studentData?.qr_image_url}
               alt="QR Code"
-              className="mt-4 mx-auto w-40 h-40 bg-gray-700 rounded-lg shadow-lg"
+              className="mt-4 mx-auto w-[99%] object-contain bg-gray-700 rounded-lg shadow-lg"
             />
             <div className="mt-4 flex items-center justify-center gap-2">
               {studentData?.qr_scanned ? (
@@ -163,7 +163,7 @@ export default function HomePage() {
                 className="mt-4 w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
                 onClick={handleDownload}
               >
-                <DownloadCloud className="w-5 h-5" /> Download QR
+                <DownloadCloud className="w-5 h-5" /> Download
               </button>
               <button
                 className="mt-4 w-full bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
