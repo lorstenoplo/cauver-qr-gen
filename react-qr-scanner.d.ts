@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module "react-qr-scanner" {
   import { Component } from "react";
 
