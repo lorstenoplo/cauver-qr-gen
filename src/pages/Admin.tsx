@@ -1,9 +1,73 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useRef, useCallback } from "react";
 import QrReader from "react-qr-scanner";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { Camera, XCircle, CheckCircle2, Loader2, Lock, LogOut } from "lucide-react";
+import {
+  Camera,
+  XCircle,
+  CheckCircle2,
+  Loader2,
+  Lock,
+  LogOut,
+} from "lucide-react";
 import { auth, db } from "../lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
+
+// For decryption
+const SECRET_KEY = "3$5$8$5@cauvery@food#fest2025!!#";
+
+async function decryptPayload(encoded: string): Promise<any> {
+  const raw = JSON.parse(atob(encoded)); // Decoding base64 to JSON
+  const decoder = new TextDecoder();
+
+  const keyMaterial = new TextEncoder().encode(SECRET_KEY); // Encoding SECRET_KEY into bytes
+
+  try {
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyMaterial,
+      "AES-GCM",
+      false,
+      ["decrypt"]
+    );
+
+    const iv = Uint8Array.from(atob(raw.nonce), (c) => c.charCodeAt(0)); // Decoding nonce
+    const ciphertext = Uint8Array.from(atob(raw.ciphertext), (c) =>
+      c.charCodeAt(0)
+    ); // Decoding ciphertext
+    const tag = Uint8Array.from(atob(raw.tag), (c) => c.charCodeAt(0)); // Decoding tag
+
+    // Concatenate ciphertext and tag for AES-GCM decryption
+    const fullCiphertext = new Uint8Array(ciphertext.length + tag.length);
+    fullCiphertext.set(ciphertext);
+    fullCiphertext.set(tag, ciphertext.length);
+
+    // Attempting to decrypt
+    const decrypted = await crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: iv,
+        tagLength: 128,
+      },
+      cryptoKey,
+      fullCiphertext
+    );
+
+    return JSON.parse(decoder.decode(decrypted)); // Decoding the decrypted data into JSON
+  } catch (error) {
+    console.error("Decryption failed:", error);
+    throw new Error("Decryption failed. Check key, nonce, or ciphertext.");
+  }
+}
+
+async function decryptQRData(encryptedText: string) {
+  try {
+    return await decryptPayload(encryptedText); // Decrypt and return the payload
+  } catch (error) {
+    console.error("Failed to decrypt:", error);
+    throw new Error("Invalid QR code");
+  }
+}
 
 export default function QRScanner() {
   const [scanning, setScanning] = useState(false);
@@ -18,20 +82,27 @@ export default function QRScanner() {
   const processingRef = useRef(false);
 
   const handleScan = useCallback(
-    async (data: { text: any }) => {
+    async (data: any) => {
       if (!data || processingRef.current || !isAuthenticated) return;
       processingRef.current = true;
       setLoading(true);
 
       try {
-        const decodedText = data.text;
-        const parsedData = JSON.parse(decodedText);
+        const encodedText = data.text;
 
-        if (!parsedData.roll_num) {
+        // Decrypt the QR code data
+        const decryptedData = await decryptQRData(encodedText);
+
+        if (
+          !decryptedData ||
+          !decryptedData.doc_id ||
+          !decryptedData.roll_num
+        ) {
           throw new Error("Invalid QR code format");
         }
 
-        const studentRef = doc(db, "students", parsedData.roll_num);
+        // Get the document using the doc_id from the QR code
+        const studentRef = doc(db, "students", decryptedData.doc_id);
         const studentDoc = await getDoc(studentRef);
 
         if (!studentDoc.exists()) {
@@ -39,15 +110,19 @@ export default function QRScanner() {
         }
 
         const studentRecord = studentDoc.data();
+
+        // Check if already scanned
         if (studentRecord.qr_scanned) {
-          const scannedDate = new Date(
-            studentRecord.scanned_at.toDate()
-          ).toLocaleString();
+          const scannedDate = studentRecord.scanned_at
+            ? new Date(studentRecord.scanned_at.toDate()).toLocaleString()
+            : "previously";
+
           throw new Error(
             `${studentRecord.name} has already scanned at ${scannedDate}`
           );
         }
 
+        // Update the document
         await updateDoc(studentRef, {
           qr_scanned: true,
           scanned_at: new Date(),
@@ -56,19 +131,19 @@ export default function QRScanner() {
         setSuccess("✓ Food coupon validated successfully!");
         setStudentData({
           name: studentRecord.name,
-          roll_num: parsedData.roll_num,
-          department: studentRecord.department,
-          year: studentRecord.year,
+          roll_num: studentRecord.roll_num,
           scanned_at: new Date().toLocaleString(),
+          preference: studentRecord.preference,
         });
 
+        // Reset after 5 seconds
         setTimeout(() => {
           setSuccess("");
           setStudentData(null);
           processingRef.current = false;
         }, 5000);
-      } catch (error) {
-        setError((error as any).message);
+      } catch (error: any) {
+        setError(error.message);
         setTimeout(() => {
           setError("");
           processingRef.current = false;
@@ -215,6 +290,16 @@ export default function QRScanner() {
                   <div className="flex justify-between">
                     <span className="text-gray-400">Roll Number</span>
                     <span className="font-medium">{studentData.roll_num}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Food Preference:</span>
+                    {studentData?.preference === "veg" ? (
+                      <p className="text-green-400">Vegetarian</p>
+                    ) : studentData?.preference === "non veg" ? (
+                      <p className="text-red-400">Non-Vegetarian</p>
+                    ) : (
+                      <p className="text-yellow-400">Not Specified</p>
+                    )}
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Scanned At</span>

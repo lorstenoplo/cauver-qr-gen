@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import {
   GoogleAuthProvider,
@@ -5,9 +6,16 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
-import { Loader2, LogOut, CheckCircle2, Clock, RefreshCw } from "lucide-react";
+import {
+  Loader2,
+  LogOut,
+  CheckCircle2,
+  Clock,
+  RefreshCw,
+  DownloadCloud,
+} from "lucide-react";
 
 export default function HomePage() {
   const [user, setUser] = useState<any>(null);
@@ -28,16 +36,29 @@ export default function HomePage() {
   const fetchStudentData = async (currentUser: any) => {
     const email = currentUser.email;
     if (email.endsWith("@smail.iitm.ac.in")) {
-      const rollNum = email.split("@")[0].toUpperCase();
-      const studentRef = doc(db, "students", rollNum);
-      const studentDoc = await getDoc(studentRef);
-      if (studentDoc.exists()) {
-        setStudentData(studentDoc.data());
-        setUser(currentUser);
-      } else {
+      try {
+        // Query students collection where email field matches the user's email
+        const q = query(
+          collection(db, "students"),
+          where("email", "==", email)
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          // Get the first matching document
+          const studentDoc = querySnapshot.docs[0];
+          setStudentData({ ...studentDoc.data(), id: studentDoc.id });
+          setUser(currentUser);
+        } else {
+          console.error("Student document not found for email:", email);
+          signOut(auth);
+        }
+      } catch (error) {
+        console.error("Error fetching student data:", error);
         signOut(auth);
       }
     } else {
+      console.log("Not an IITM email");
       signOut(auth);
     }
   };
@@ -53,6 +74,18 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownload = async () => {
+    if (!studentData) return;
+    const qrImageUrl = studentData.qr_image_url;
+    const link = document.createElement("a");
+    link.href = qrImageUrl;
+    link.target = "_blank";
+    link.download = `${studentData.roll_num}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleSignOut = async () => {
@@ -101,6 +134,19 @@ export default function HomePage() {
                 </div>
               )}
             </div>
+            {/* Food prefernce */}
+            <div className="mt-4 text-gray-400">
+              {studentData?.preference === "veg" ? (
+                <p className="text-green-400">Food Preference: Vegetarian</p>
+              ) : studentData?.preference === "non veg" ? (
+                <p className="text-red-400">Food Preference: Non-Vegetarian</p>
+              ) : (
+                <p className="text-yellow-400">
+                  Food Preference: Not Specified
+                </p>
+              )}
+            </div>
+
             <button
               className="bg-gray-700 hover:bg-gray-600 p-2 rounded-xl w-full mt-4 flex items-center justify-center font-medium transition-all duration-200 gap-2"
               onClick={refreshStatus}
@@ -111,12 +157,21 @@ export default function HomePage() {
               />
               Refresh
             </button>
-            <button
-              className="mt-4 w-full bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
-              onClick={handleSignOut}
-            >
-              <LogOut className="w-5 h-5" /> Sign Out
-            </button>
+
+            <div className="flex gap-4">
+              <button
+                className="mt-4 w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
+                onClick={handleDownload}
+              >
+                <DownloadCloud className="w-5 h-5" /> Download QR
+              </button>
+              <button
+                className="mt-4 w-full bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
+                onClick={handleSignOut}
+              >
+                <LogOut className="w-5 h-5" /> Sign Out
+              </button>
+            </div>
           </div>
         ) : (
           <div className="text-center">
