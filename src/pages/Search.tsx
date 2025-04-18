@@ -423,7 +423,7 @@ export default function StudentSearch() {
             {/* Bottom Navigation */}
             <div className="flex gap-3 mt-6">
               <Link
-                to="/qr-scanner"
+                to="/scanner"
                 className="flex-1 bg-blue-500 hover:bg-blue-600 p-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-5 h-5" /> Back to Scanner
