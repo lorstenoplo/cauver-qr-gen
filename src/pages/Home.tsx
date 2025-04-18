@@ -14,14 +14,18 @@ import {
   CheckCircle2,
   Clock,
   RefreshCw,
-  DownloadCloud,
+  Download,
+  Maximize2,
+  FileDown,
+  Utensils,
 } from "lucide-react";
 
 export default function HomePage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [studentData, setStudentData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [enlargedQR, setEnlargedQR] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -37,7 +41,6 @@ export default function HomePage() {
     const email = currentUser.email;
     if (email.endsWith("@smail.iitm.ac.in")) {
       try {
-        // Query students collection where email field matches the user's email
         const q = query(
           collection(db, "students"),
           where("email", "==", email)
@@ -45,7 +48,6 @@ export default function HomePage() {
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
-          // Get the first matching document
           const studentDoc = querySnapshot.docs[0];
           setStudentData({ ...studentDoc.data(), id: studentDoc.id });
           setUser(currentUser);
@@ -69,29 +71,43 @@ export default function HomePage() {
     try {
       const result = await signInWithPopup(auth, provider);
       await fetchStudentData(result.user);
-    } catch (error) {
-      alert((error as any).message);
+    } catch (error: any) {
+      alert(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!studentData) return;
-    const qrImageUrl = studentData.qr_image_url;
+
+    // Create a temporary anchor element
     const link = document.createElement("a");
-    link.href = qrImageUrl;
-    link.target = "_blank";
-    link.download = `${studentData.roll_num}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    link.href = studentData.qr_image_url;
+    link.download = `${studentData.roll_num}_qr.png`;
+
+    // Force download instead of opening in new tab
+    fetch(studentData.qr_image_url)
+      .then((response) => response.blob())
+      .then((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        link.href = blobUrl;
+        link.click();
+        // Clean up
+        URL.revokeObjectURL(blobUrl);
+      })
+      .catch((err) => {
+        console.error("Download failed:", err);
+        // Fallback to opening in new tab
+        window.open(studentData.qr_image_url, "_blank");
+      });
   };
 
   const handleSignOut = async () => {
     await signOut(auth);
     setUser(null);
     setStudentData(null);
+    setEnlargedQR(false);
   };
 
   const refreshStatus = async () => {
@@ -104,81 +120,149 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center text-white">
-        Loading...
+        <Loader2 className="w-8 h-8 animate-spin mr-2" />
+        <span className="text-lg">Loading...</span>
       </div>
     );
   }
 
+  const renderFoodPreference = () => {
+    if (!studentData?.preference) return null;
+
+    let iconColor = "text-yellow-400";
+    let bgColor = "bg-yellow-400/10";
+    let text = "Not Specified";
+
+    if (studentData.preference === "veg") {
+      iconColor = "text-green-400";
+      bgColor = "bg-green-400/10";
+      text = "Vegetarian";
+    } else if (studentData.preference === "non veg") {
+      iconColor = "text-red-400";
+      bgColor = "bg-red-400/10";
+      text = "Non-Vegetarian";
+    }
+
+    return (
+      <div
+        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg ${bgColor}`}
+      >
+        <Utensils className={`w-5 h-5 ${iconColor}`} />
+        <span className={`font-medium ${iconColor}`}>{text}</span>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white px-4">
-      <div className="w-full max-w-md bg-gray-800 p-4 rounded-2xl shadow-xl">
-        {user ? (
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">
-              Welcome, {studentData?.name}
-            </h2>
-            <p className="text-gray-400">{studentData?.roll_num}</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white p-2">
+      {enlargedQR && studentData?.qr_image_url && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+          onClick={() => setEnlargedQR(false)}
+        >
+          <div className="relative bg-white p-2 rounded-lg max-w-xl w-full mx-4">
             <img
-              src={studentData?.qr_image_url}
-              alt="QR Code"
-              className="mt-4 mx-auto w-[99%] object-contain bg-gray-700 rounded-lg shadow-lg"
+              src={studentData.qr_image_url}
+              alt="QR Code (Enlarged)"
+              className="w-full h-auto"
             />
-            <div className="mt-4 flex items-center justify-center gap-2">
-              {studentData?.qr_scanned ? (
-                <div className="flex items-center text-green-400">
-                  <CheckCircle2 className="w-6 h-6 mr-2" /> Scanned Successfully
-                </div>
-              ) : (
-                <div className="flex items-center text-yellow-400">
-                  <Clock className="w-6 h-6 mr-2" /> Pending Scan
-                </div>
-              )}
-            </div>
-            {/* Food prefernce */}
-            <div className="mt-4 text-gray-400">
-              {studentData?.preference === "veg" ? (
-                <p className="text-green-400">Food Preference: Vegetarian</p>
-              ) : studentData?.preference === "non veg" ? (
-                <p className="text-red-400">Food Preference: Non-Vegetarian</p>
-              ) : (
-                <p className="text-yellow-400">
-                  Food Preference: Not Specified
-                </p>
-              )}
-            </div>
-
             <button
-              className="bg-gray-700 hover:bg-gray-600 p-2 rounded-xl w-full mt-4 flex items-center justify-center font-medium transition-all duration-200 gap-2"
-              onClick={refreshStatus}
-              disabled={refreshing}
+              className="absolute -top-2 -right-2 bg-gray-800 p-2 rounded-full"
+              onClick={handleDownload}
             >
-              <RefreshCw
-                className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
-              />
-              Refresh
+              <Download className="w-5 h-5 text-white" />
             </button>
+          </div>
+        </div>
+      )}
 
-            <div className="flex gap-4">
+      <div className="w-full max-w-md bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
+        {user ? (
+          <div>
+            {/* Header section */}
+            <div className="bg-gray-700 p-6 text-center">
+              <h2 className="text-2xl font-bold">{studentData?.name}</h2>
+              <p className="text-gray-300 mt-1">{studentData?.roll_num}</p>
+
+              <div className="mt-4 flex justify-center">
+                {renderFoodPreference()}
+              </div>
+            </div>
+
+            {/* QR code section */}
+            <div className="p-2 mt-2">
+              <div className="relative">
+                <div className="bg-white p-3 rounded-lg shadow-lg">
+                  <img
+                    src={studentData?.qr_image_url}
+                    alt="QR Code"
+                    className="w-full object-contain"
+                  />
+                </div>
+
+                <button
+                  className="absolute -top-2 -right-2 bg-gray-700 p-2 rounded-full hover:bg-gray-600 transition-colors"
+                  onClick={() => setEnlargedQR(true)}
+                >
+                  <Maximize2 className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Status badge */}
+              <div className="mt-6 flex justify-center">
+                {studentData?.qr_scanned ? (
+                  <div className="flex items-center bg-green-400/10 text-green-400 px-4 py-2 rounded-lg">
+                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Scanned Successfully</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center bg-yellow-400/10 text-yellow-400 px-4 py-2 rounded-lg">
+                    <Clock className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Pending Scan</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions section */}
+            <div className="p-6 pt-2 bg-gray-800">
               <button
-                className="mt-4 w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
-                onClick={handleDownload}
+                className="bg-gray-700 hover:bg-gray-600 p-3 rounded-xl w-full flex items-center justify-center font-medium transition-colors gap-2"
+                onClick={refreshStatus}
+                disabled={refreshing}
               >
-                <DownloadCloud className="w-5 h-5" /> Download
+                <RefreshCw
+                  className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
+                />
+                Refresh Status
               </button>
-              <button
-                className="mt-4 w-full bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
-                onClick={handleSignOut}
-              >
-                <LogOut className="w-5 h-5" /> Sign Out
-              </button>
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <button
+                  className="bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors"
+                  onClick={handleDownload}
+                >
+                  <FileDown className="w-5 h-5" />
+                  Download
+                </button>
+                <button
+                  className="bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="w-5 h-5" />
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Sign In</h2>
-            <p className="text-gray-400 mb-6">Use your IITM smail ID</p>
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold mb-4">Student ID Card</h2>
+            <p className="text-gray-400 mb-6">
+              Sign in with your IITM smail ID to access your digital ID card
+            </p>
             <button
-              className="w-full bg-blue-500 hover:bg-blue-600 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-all duration-200"
+              className="w-full bg-blue-500 hover:bg-blue-600 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-medium transition-colors"
               onClick={handleSignIn}
               disabled={loading}
             >
